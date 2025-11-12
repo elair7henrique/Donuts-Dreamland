@@ -2,6 +2,7 @@
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
+require("dotenv").config(); // <-- Para usar variáveis .env
 
 const app = express();
 app.use(cors());
@@ -9,10 +10,14 @@ app.use(express.json());
 
 // ================== CONEXÃO COM MYSQL ==================
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root", // seu usuário do MySQL
-  password: "202074Dl", // sua senha
-  database: "donuts_dreamland", // nome do seu banco
+  host: process.env.DB_HOST,     // ex: 'containers-us-west-34.railway.app'
+  user: process.env.DB_USER,     // ex: 'root'
+  password: process.env.DB_PASS, // senha do banco
+  database: process.env.DB_NAME, // nome do banco
+  port: process.env.DB_PORT || 3306, // porta padrão do MySQL
+  ssl: {
+    rejectUnauthorized: true, // necessário para PlanetScale
+  },
 });
 
 db.connect((err) => {
@@ -72,6 +77,7 @@ app.post("/login", (req, res) => {
 });
 
 // ================== INICIAR SERVIDOR ==================
-app.listen(3000, () => {
-  console.log("🚀 Servidor rodando em http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
