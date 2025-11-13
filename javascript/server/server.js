@@ -2,11 +2,19 @@
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
+const path = require("path");
 require("dotenv").config(); // <-- Para usar variáveis .env
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ================== SERVIR FRONT-END ==================
+// Caminho para a pasta principal do projeto (sobe dois níveis: javascript/server → raiz)
+const frontPath = path.join(__dirname, "../..");
+
+// Servir todos os arquivos HTML, CSS, JS e imagens
+app.use(express.static(frontPath));
 
 // ================== CONEXÃO COM MYSQL ==================
 const db = mysql.createConnection({
@@ -74,6 +82,11 @@ app.post("/login", (req, res) => {
       res.status(401).json({ message: "E-mail ou senha incorretos!" });
     }
   });
+});
+
+// ================== ROTA PADRÃO ==================
+app.get("/", (req, res) => {
+  res.sendFile(path.join(frontPath, "index.html"));
 });
 
 // ================== INICIAR SERVIDOR ==================
