@@ -1,6 +1,6 @@
 // ================== IMPORTAÇÕES ==================
 const express = require("express");
-const mysql = require("mysql2");
+const mysql = require("MYSQL80");
 const cors = require("cors");
 require("dotenv").config(); // <-- Para usar variáveis .env
 
@@ -10,14 +10,12 @@ app.use(express.json());
 
 // ================== CONEXÃO COM MYSQL ==================
 const db = mysql.createConnection({
-  host: process.env.DB_HOST,     // ex: 'containers-us-west-34.railway.app'
-  user: process.env.DB_USER,     // ex: 'root'
-  password: process.env.DB_PASS, // senha do banco
-  database: process.env.DB_NAME, // nome do banco
-  port: process.env.DB_PORT || 3306, // porta padrão do MySQL
-  ssl: {
-    rejectUnauthorized: true, // necessário para PlanetScale
-  },
+  host: process.env.DB_HOST || "127.0.0.1",   // se não tiver .env, usa local
+  user: process.env.DB_USER || "root",        // seu usuário do MySQL
+  password: process.env.DB_PASS || "202074Dl",// senha local ou .env
+  database: process.env.DB_NAME || "donuts_dreamland",
+  port: process.env.DB_PORT || 5432,          // porta padrão
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: true } : false,
 });
 
 db.connect((err) => {
