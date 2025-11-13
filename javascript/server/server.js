@@ -1,83 +1,108 @@
-// ================== IMPORTAÇÕES ==================
+// ------------------------------
+// CONFIGURAÇÕES INICIAIS
+// ------------------------------
 const express = require("express");
-const mysql = require("mysql2");
 const cors = require("cors");
-require("dotenv").config(); // <-- Para usar variáveis .env
-
+const path = require("path");
+const { Pool } = require("pg");
+const bcrypt = require("bcrypt");
 const app = express();
-app.use(cors());
+
 app.use(express.json());
 
-// ================== CONEXÃO COM MYSQL ==================
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,     // ex: 'containers-us-west-34.railway.app'
-  user: process.env.DB_USER,     // ex: 'root'
-  password: process.env.DB_PASS, // senha do banco
-  database: process.env.DB_NAME, // nome do banco
-  port: process.env.DB_PORT || 3306, // porta padrão do MySQL
-  ssl: {
-    rejectUnauthorized: true, // necessário para PlanetScale
-  },
+// ------------------------------
+// CONFIGURAÇÃO DO CORS
+// ------------------------------
+app.use(cors({
+  origin: [
+    "http://localhost:5501",
+    "http://127.0.0.1:5501",
+    "https://donuts-dreamland.onrender.com" // ⬅️ altere aqui pro domínio do seu site hospedado
+  ],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"],
+}));
+
+// ------------------------------
+// SERVIR O FRONTEND AQUI
+// ------------------------------
+app.use(express.static(path.join(__dirname, "../../"))); // Serve HTML, CSS e JS
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "../../index.html"));
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error("❌ Erro ao conectar ao MySQL:", err);
-    return;
-  }
-  console.log("✅ Conexão com MySQL bem-sucedida!");
+// ------------------------------
+// CONEXÃO COM O BANCO DE DADOS
+// ------------------------------
+// Usa variáveis de ambiente no Render, ou configuração local
+const pool = new Pool({
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASSWORD || "1234567890",
+  host: process.env.DB_HOST || "localhost",
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_DATABASE || "donuts_dreamland",
+  ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : false, // SSL apenas no Render
 });
 
-// ================== ROTAS ==================
-
-// 👉 CADASTRAR USUÁRIO
-app.post("/cadastro", (req, res) => {
+// ------------------------------
+// ROTA DE CADASTRO
+// ------------------------------
+app.post("/cadastro", async (req, res) => {
+  console.log("📩 Dados recebidos do frontend:", req.body);
   const { email, numero, senha } = req.body;
 
-  console.log("📩 Dados recebidos:", req.body);
-
   if (!email || !numero || !senha) {
-    return res.status(400).json({ message: "Preencha todos os campos!" });
+    console.log("❌ Erro: algum campo está vazio");
+    return res.status(400).json({ mensagem: "Preencha todos os campos!" });
   }
 
-  const sql = "INSERT INTO usuarios (email, numero, senha) VALUES (?, ?, ?)";
-  db.query(sql, [email, numero, senha], (err, result) => {
-    if (err) {
-      console.error("❌ Erro ao cadastrar usuário:", err);
-      return res.status(500).json({ message: "Erro ao cadastrar usuário." });
-    }
+  try {
+    const senhaCriptografada = await bcrypt.hash(senha, 10);
 
-    console.log("✅ Usuário cadastrado com sucesso!");
-    res.status(200).json({ message: "Usuário cadastrado com sucesso!" });
-  });
+    await pool.query(
+      "INSERT INTO usuario (email, numero, senha) VALUES ($1, $2, $3)",
+      [email, numero, senhaCriptografada]
+    );
+
+    res.json({ mensagem: "✅ Usuário cadastrado com sucesso!" });
+  } catch (err) {
+    console.error("💥 Erro no banco de dados:", err);
+    res.status(500).json({ mensagem: "Erro ao cadastrar usuário." });
+  }
 });
 
-// 👉 LOGIN
-app.post("/login", (req, res) => {
+// ------------------------------
+// ROTA DE LOGIN
+// ------------------------------
+app.post("/login", async (req, res) => {
   const { email, senha } = req.body;
 
-  if (!email || !senha) {
-    return res.status(400).json({ message: "Preencha todos os campos!" });
+  try {
+    const result = await pool.query("SELECT * FROM usuario WHERE email = $1", [email]);
+    if (result.rows.length === 0) {
+      return res.status(401).json({ erro: "Usuário não encontrado" });
+    }
+
+    const usuario = result.rows[0];
+    const senhaCorreta = await bcrypt.compare(senha, usuario.senha);
+
+    if (!senhaCorreta) {
+      return res.status(401).json({ erro: "Senha incorreta" });
+    }
+
+    console.log("✅ Usuário logado:", usuario.email);
+    res.json({ mensagem: "Login bem-sucedido", usuario: usuario.email });
+  } catch (err) {
+    console.error("💥 Erro no login:", err);
+    res.status(500).json({ erro: "Erro ao fazer login" });
   }
-
-  const sql = "SELECT * FROM usuarios WHERE email = ? AND senha = ?";
-  db.query(sql, [email, senha], (err, results) => {
-    if (err) {
-      console.error("❌ Erro ao consultar banco:", err);
-      return res.status(500).json({ message: "Erro no servidor." });
-    }
-
-    if (results.length > 0) {
-      console.log("✅ Login realizado com sucesso!");
-      res.status(200).json({ message: "Login realizado com sucesso!" });
-    } else {
-      res.status(401).json({ message: "E-mail ou senha incorretos!" });
-    }
-  });
 });
 
-// ================== INICIAR SERVIDOR ==================
+// ------------------------------
+// INICIA O SERVIDOR
+// ------------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
